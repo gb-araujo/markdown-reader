@@ -32,7 +32,7 @@ function createWindow(): void {
     minWidth: 640,
     minHeight: 420,
     show: false,
-    icon: join(__dirname, '../../build/icon.png'),
+    icon: join(__dirname, '../../build/icon.ico'),
     backgroundColor: nativeTheme.shouldUseDarkColors ? '#1e1e20' : '#ffffff',
     webPreferences: {
       preload: join(__dirname, '../preload/index.js'),
