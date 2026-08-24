@@ -45,6 +45,7 @@
   "build": {
     "appId": "com.markdownreader.app",
     "productName": "Markdown Reader",
+    "icon": "build/icon.png",
     "directories": {
       "output": "dist"
     },
@@ -52,7 +53,8 @@
       "out/**/*"
     ],
     "win": {
-      "target": "nsis"
+      "target": "nsis",
+      "icon": "build/icon.png"
     },
     "fileAssociations": [
       {
