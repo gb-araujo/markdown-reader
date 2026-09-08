@@ -1,11 +1,11 @@
 import MarkdownIt from 'markdown-it'
-import taskLists from 'markdown-it-task-lists'
 import footnote from 'markdown-it-footnote'
 import texmath from 'markdown-it-texmath'
 import katex from 'katex'
 import DOMPurify from 'dompurify'
 import { highlightCode, knownLanguage, escapeHtml } from './highlight'
 import { SlugTracker } from './slug'
+import { taskLists, type TaskEnv, type TaskItem } from './tasklist'
 
 export interface TocItem {
   id: string
@@ -16,6 +16,8 @@ export interface TocItem {
 export interface RenderedMarkdown {
   html: string
   toc: TocItem[]
+  /** Task-list checkboxes, in document order, with their source lines. */
+  tasks: TaskItem[]
 }
 
 const md: MarkdownIt = new MarkdownIt({
@@ -25,7 +27,7 @@ const md: MarkdownIt = new MarkdownIt({
   highlight: (code, lang) => highlightCode(code, lang || null)
 })
 
-md.use(taskLists, { enabled: false })
+md.use(taskLists)
 md.use(footnote)
 // Math via KaTeX: $inline$ and $$block$$. Rendered to HTML+MathML at parse time.
 md.use(texmath, {
@@ -33,6 +35,16 @@ md.use(texmath, {
   delimiters: 'dollars',
   katexOptions: { throwOnError: false, strict: false }
 })
+
+// Headings carry a fold toggle so sections can be collapsed while reading.
+md.renderer.rules.heading_open = (tokens, idx, options, _env, self) => {
+  tokens[idx].attrJoin('class', 'md-heading')
+  return (
+    self.renderToken(tokens, idx, options) +
+    `<button type="button" class="heading-fold" tabindex="-1"` +
+    ` aria-expanded="true" title="Collapse section"></button>`
+  )
+}
 
 // Wrap fenced code blocks in a container with a language label and copy button.
 // `mermaid` blocks are emitted as a placeholder the Viewer renders into a diagram.
@@ -66,7 +78,7 @@ md.renderer.rules.fence = (tokens, idx) => {
  * contents in the same pass so TOC ids always match the rendered document.
  */
 export function renderMarkdown(source: string): RenderedMarkdown {
-  const env = {}
+  const env: TaskEnv = {}
   const tokens = md.parse(source, env)
   const toc: TocItem[] = []
   const slugs = new SlugTracker()
@@ -82,7 +94,7 @@ export function renderMarkdown(source: string): RenderedMarkdown {
   }
 
   const raw = md.renderer.render(tokens, md.options, env)
-  return { html: sanitize(raw), toc }
+  return { html: sanitize(raw), toc, tasks: env.tasks ?? [] }
 }
 
 function extractText(inlineToken: { children?: { type: string; content: string }[] | null }): string {

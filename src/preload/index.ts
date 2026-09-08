@@ -5,6 +5,7 @@ import type {
   FileReadResult,
   MenuCommand,
   PersistedState,
+  TaskWriteResult,
   TreeNode
 } from '../shared/types'
 
@@ -19,6 +20,14 @@ const api = {
   openFolderDialog: (): Promise<string | null> => ipcRenderer.invoke('dialog:open-folder'),
   readFile: (path: string): Promise<FileReadResult> => ipcRenderer.invoke('file:read', path),
   scanFolder: (path: string): Promise<TreeNode | null> => ipcRenderer.invoke('folder:scan', path),
+  /** Write a task-list checkbox back to `path`; `expected` guards against external edits. */
+  toggleTask: (
+    path: string,
+    line: number,
+    checked: boolean,
+    expected: string
+  ): Promise<TaskWriteResult> =>
+    ipcRenderer.invoke('file:toggle-task', path, line, checked, expected),
 
   getState: (): Promise<PersistedState> => ipcRenderer.invoke('state:get'),
   updateState: (partial: Partial<PersistedState>): Promise<PersistedState> =>

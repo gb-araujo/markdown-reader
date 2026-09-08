@@ -8,6 +8,9 @@ A modern desktop **Markdown reader** built with Electron. Opens `.md` files and 
 ## Features
 
 - **Markdown rendering** — headings, lists, task lists, tables, blockquotes, footnotes, images, links
+- **Interactive task lists** — tick a `- [ ]` checkbox and the change is written straight back to the `.md` file; the status bar tracks how many are done
+- **Collapsible sections** — fold a heading to hide everything under it until the next heading of the same level
+- **Sortable tables** — click a column header to sort ascending, descending, then back to the document order
 - **Syntax highlighting** — code blocks with a Copy button (highlight.js)
 - **LaTeX math** — `$inline$` and `$$block$$` via KaTeX
 - **Mermaid diagrams** — fenced ` ```mermaid ` blocks render to SVG, lazy-loaded
@@ -64,7 +67,7 @@ The installer is placed in `dist/`.
 | Shell | Electron |
 | Bundler | electron-vite + Vite |
 | UI | React 18 + TypeScript |
-| Markdown | markdown-it (CommonMark + tables, task lists, footnotes) |
+| Markdown | markdown-it (CommonMark + tables, footnotes) + an in-house task-list rule |
 | Highlighting | highlight.js |
 | Math | KaTeX via markdown-it-texmath |
 | Diagrams | Mermaid (lazy-loaded) |
@@ -80,24 +83,30 @@ Markdown rendering is an HTML/CSS problem, and the richest rendering and syntax-
 ```
 src/
 ├── shared/          Types + format tables shared across processes
+│   └── tasks.ts     Surgical `- [ ]` ↔ `- [x]` source edits (main + renderer)
 ├── main/            Electron main process
 │   ├── index.ts     Window, single-instance, doc-asset protocol, file associations
-│   ├── files.ts     Safe file reading (typed errors) + folder scanning
+│   ├── files.ts     Safe file reading (typed errors), folder scanning, task write-back
 │   ├── store.ts     Atomic, debounced JSON persistence (userData/state.json)
-│   ├── ipc.ts       IPC handlers (dialogs, read, scan, state, shell)
+│   ├── ipc.ts       IPC handlers (dialogs, read, scan, task toggle, state, shell)
 │   └── menu.ts      Native application menu → renderer commands
 ├── preload/         contextBridge API (the only main ↔ renderer surface)
 └── renderer/        React app
-    ├── core/        Pure, tested logic: markdown, codeview, search, slug, highlight
+    ├── core/        Pure, tested logic: markdown, tasklist, fold, tables,
+    │                codeview, search, slug, highlight
     ├── components/  Toolbar, TabBar, Sidebar, Viewer, SearchBar, StatusBar…
     └── store.ts     App state: tabs, session, zoom, theme, reading position
 ```
+
+**Editing:** the reader is read-only except for task checkboxes. A toggle names the source line it came from and the text it expects to find there; the main process re-reads the file, refuses the write if that line no longer matches, and otherwise rewrites just the one checkbox character — indentation, trailing spaces and mixed line endings are left alone.
 
 **Security:** the renderer runs with `contextIsolation` enabled and no Node access. Rendered HTML is sanitized (no scripts, iframes, inline styles or `javascript:` URLs). Local images are served through a dedicated `doc-asset:` protocol restricted to image extensions — the renderer never gets raw `file://` access. External links open in the system browser.
 
 ## Testing
 
 Unit tests (Vitest) cover the pure core: slug/anchor generation, Markdown rendering + TOC + sanitization (including Mermaid placeholders and KaTeX math), code-view rendering, in-document search, JSON/YAML structured parsing, format classification, and the main-process file reader/folder scanner (missing, empty, unsupported and directory inputs).
+
+The interactive features are covered end to end in the source: task-line parsing and rewriting (CRLF, BOM, ordered and nested items, stale-line rejection), checkbox rendering and its source-line mapping, the on-disk write path, section folding (including nested folds), and table sorting.
 
 ## Roadmap
 

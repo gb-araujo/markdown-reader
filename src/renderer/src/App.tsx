@@ -20,7 +20,9 @@ export default function App(): React.JSX.Element {
     openPaths,
     openFileDialog,
     openFolder,
-    searchOpen
+    searchOpen,
+    notice,
+    setNotice
   } = useApp()
   const [dragging, setDragging] = useState(false)
   const dragDepth = useRef(0)
@@ -44,6 +46,13 @@ export default function App(): React.JSX.Element {
     media.addEventListener('change', apply)
     return () => media.removeEventListener('change', apply)
   }, [settings.theme])
+
+  // Notices (e.g. a task that could not be written) fade out on their own.
+  useEffect(() => {
+    if (!notice) return
+    const timer = setTimeout(() => setNotice(null), 5000)
+    return () => clearTimeout(timer)
+  }, [notice, setNotice])
 
   // Native menu commands.
   useEffect(() => {

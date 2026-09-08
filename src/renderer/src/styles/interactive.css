@@ -1,0 +1,141 @@
+/* ===== Interactive document: task checkboxes, folding, sortable tables ===== */
+
+/* Folded content. `!important` because .markdown-body table sets display:block,
+   which would otherwise beat the [hidden] default. */
+.markdown-body [hidden] {
+  display: none !important;
+}
+
+/* ===== Task list checkboxes ===== */
+.markdown-body li.task-list-item input.task-list-item-checkbox {
+  cursor: pointer;
+  accent-color: var(--accent);
+  width: 13px;
+  height: 13px;
+}
+
+/* Held while the toggle is being written to disk. */
+.markdown-body input.task-list-item-checkbox.task-busy {
+  pointer-events: none;
+  opacity: 0.55;
+}
+
+.markdown-body li.task-list-item:has(> input:checked) {
+  color: var(--fg-muted);
+}
+
+/* ===== Collapsible headings ===== */
+.markdown-body .md-heading {
+  position: relative;
+}
+
+.markdown-body .heading-fold {
+  position: absolute;
+  left: -1.15em;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 1em;
+  height: 1em;
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--fg-muted);
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.12s ease;
+  font-size: 0.7em;
+  line-height: 1;
+}
+
+.markdown-body .heading-fold::before {
+  content: '▾';
+  display: block;
+  transition: transform 0.12s ease;
+}
+
+.markdown-body .md-heading:hover .heading-fold,
+.markdown-body .heading-fold:focus-visible {
+  opacity: 1;
+}
+
+.markdown-body .md-heading.collapsed .heading-fold {
+  opacity: 1;
+}
+
+.markdown-body .md-heading.collapsed .heading-fold::before {
+  transform: rotate(-90deg);
+}
+
+/* Marks a heading whose section is hidden. */
+.markdown-body .md-heading.collapsed::after {
+  content: '…';
+  margin-left: 0.4em;
+  padding: 0 0.35em;
+  border-radius: 4px;
+  background: var(--bg-tertiary);
+  color: var(--fg-muted);
+  font-size: 0.7em;
+  vertical-align: middle;
+}
+
+/* ===== Sortable tables ===== */
+.markdown-body table.sortable th {
+  cursor: pointer;
+  user-select: none;
+  padding-right: 1.6em;
+  position: relative;
+}
+
+.markdown-body table.sortable th:hover {
+  background: var(--hover);
+}
+
+.markdown-body table.sortable th::after {
+  content: '⇅';
+  position: absolute;
+  right: 6px;
+  color: var(--fg-muted);
+  opacity: 0.35;
+  font-size: 0.85em;
+}
+
+.markdown-body table.sortable th[data-sort='asc']::after {
+  content: '↑';
+  opacity: 1;
+  color: var(--accent);
+}
+
+.markdown-body table.sortable th[data-sort='desc']::after {
+  content: '↓';
+  opacity: 1;
+  color: var(--accent);
+}
+
+/* ===== Status bar notices ===== */
+.status-notice {
+  font-weight: 500;
+}
+
+.status-notice.error {
+  color: #dc2626;
+}
+
+:root[data-theme='dark'] .status-notice.error {
+  color: #f87171;
+}
+
+/* ===== Print ===== */
+@media print {
+  .markdown-body .heading-fold,
+  .markdown-body .md-heading.collapsed::after {
+    display: none !important;
+  }
+
+  .markdown-body table.sortable th {
+    padding-right: 13px;
+  }
+
+  .markdown-body table.sortable th::after {
+    content: none;
+  }
+}

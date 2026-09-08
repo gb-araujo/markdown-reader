@@ -3,11 +3,14 @@ import { useApp, pendingAnchors, effectiveTheme, type Tab } from '../store'
 import { SUPPORTED_EXTENSIONS, extensionOf } from '../../../shared/types'
 import { renderMermaidBlocks, resetMermaid } from '../core/mermaid'
 import { parseStructured } from '../core/structured'
+import { revealElement, toggleSection } from '../core/fold'
+import { cycleSort, markSortableTables } from '../core/tables'
 import JsonTree from './JsonTree'
 
 export default function Viewer({ tab }: { tab: Tab }): React.JSX.Element {
   const containerRef = useRef<HTMLDivElement>(null)
-  const { readingPositions, noteScroll, setActiveHeading, openPath, openLightbox, settings } = useApp()
+  const { readingPositions, noteScroll, setActiveHeading, openPath, openLightbox, toggleTask, settings } =
+    useApp()
   const theme = effectiveTheme(settings.theme)
   const saveTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const restored = useRef(false)
@@ -81,6 +84,13 @@ export default function Viewer({ tab }: { tab: Tab }): React.JSX.Element {
     })
   }, [tab.loading, tab.path, tab.html])
 
+  // Only tables with a header and more than one row respond to sort clicks.
+  useEffect(() => {
+    const el = containerRef.current
+    if (!el || tab.loading || tab.doc?.kind !== 'markdown') return
+    markSortableTables(el)
+  }, [tab.loading, tab.html, tab.doc?.kind])
+
   // Render Mermaid diagrams and re-render when the theme changes.
   useEffect(() => {
     const el = containerRef.current
@@ -119,6 +129,38 @@ export default function Viewer({ tab }: { tab: Tab }): React.JSX.Element {
   const onClick = useCallback(
     (e: React.MouseEvent): void => {
       const target = e.target as HTMLElement
+
+      // Task-list checkboxes write the new state back to the source file. The
+      // browser has already flipped the box, so we only undo it if the write
+      // fails; `task-busy` swallows further clicks until then.
+      if (target instanceof HTMLInputElement && target.classList.contains('task-list-item-checkbox')) {
+        const line = Number(target.dataset.taskLine)
+        const checked = target.checked
+        if (!Number.isInteger(line)) {
+          target.checked = !checked
+          return
+        }
+        target.classList.add('task-busy')
+        void toggleTask(tab.id, line, checked).then((ok) => {
+          target.classList.remove('task-busy')
+          if (!ok) target.checked = !checked
+        })
+        return
+      }
+
+      // Fold toggles on headings.
+      const fold = target.closest('.heading-fold')
+      if (fold?.parentElement) {
+        toggleSection(fold.parentElement)
+        return
+      }
+
+      // Sortable table headers — unless the click landed on a link inside one.
+      const header = target.closest('th')
+      if (header?.closest('table.sortable') && !target.closest('a')) {
+        cycleSort(header)
+        return
+      }
 
       // Copy buttons on code blocks.
       if (target.classList.contains('code-copy')) {
@@ -173,7 +215,7 @@ export default function Viewer({ tab }: { tab: Tab }): React.JSX.Element {
         // invalid path; ignore
       }
     },
-    [tab.path, openPath, openLightbox]
+    [tab.id, tab.path, openPath, openLightbox, toggleTask]
   )
 
   const onKeyDown = useCallback((e: React.KeyboardEvent): void => {
@@ -247,6 +289,8 @@ function scrollToHeading(container: HTMLElement, id: string): void {
     container.querySelector(`[id="${CSS.escape(id)}"]`) ??
     container.querySelector(`[name="${CSS.escape(id)}"]`)
   if (target) {
+    // A collapsed ancestor would leave offsetTop stale, so unfold first.
+    revealElement(container, target as HTMLElement)
     const top = (target as HTMLElement).offsetTop - 12
     container.scrollTop = Math.max(0, top)
   }

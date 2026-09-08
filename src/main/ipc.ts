@@ -1,7 +1,7 @@
 import { BrowserWindow, clipboard, dialog, ipcMain, nativeImage, shell } from 'electron'
 import { promises as fs } from 'fs'
 import { basename, extname } from 'path'
-import { readDocument, scanFolder } from './files'
+import { readDocument, scanFolder, toggleTaskInFile } from './files'
 import { store } from './store'
 import {
   SUPPORTED_EXTENSIONS,
@@ -32,6 +32,12 @@ export function registerIpcHandlers(getWindow: () => BrowserWindow | null): void
   })
 
   ipcMain.handle('file:read', (_e, filePath: string) => readDocument(filePath))
+
+  ipcMain.handle(
+    'file:toggle-task',
+    (_e, filePath: string, line: number, checked: boolean, expected: string) =>
+      toggleTaskInFile(filePath, line, checked, expected)
+  )
 
   ipcMain.handle('folder:scan', (_e, folderPath: string) => scanFolder(folderPath))
 

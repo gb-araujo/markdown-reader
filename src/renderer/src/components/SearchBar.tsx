@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react'
 import { useApp } from '../store'
 import { clearHighlights, highlightMatches, setActiveMatch, MAX_MATCHES } from '../core/search'
+import { expandAll } from '../core/fold'
 
 export default function SearchBar(): React.JSX.Element {
   const { setSearchOpen } = useApp()
@@ -25,6 +26,10 @@ export default function SearchBar(): React.JSX.Element {
 
   useEffect(() => {
     inputRef.current?.focus()
+    // Matches inside a folded section could not be scrolled to, so opening
+    // Find unfolds the document first.
+    const container = getContainer()
+    if (container) expandAll(container)
     return () => {
       const container = getContainer()
       if (container) clearHighlights(container)

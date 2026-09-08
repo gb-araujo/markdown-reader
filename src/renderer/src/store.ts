@@ -10,6 +10,8 @@ import type {
 } from '../../shared/types'
 import { renderMarkdown, type TocItem } from './core/markdown'
 import { renderCodeDocument } from './core/codeview'
+import type { TaskItem } from './core/tasklist'
+import { lineAt } from '../../shared/tasks'
 
 export const ZOOM_LEVELS = [50, 75, 90, 100, 110, 125, 150, 175, 200]
 
@@ -36,6 +38,8 @@ export interface Tab {
   error: FileReadError | null
   html: string
   toc: TocItem[]
+  /** Task-list checkboxes in the document, kept in sync as they are toggled. */
+  tasks: TaskItem[]
   zoom: number
   /** Last known scrollTop, kept when switching tabs. */
   scrollTop: number
@@ -43,6 +47,12 @@ export interface Tab {
 }
 
 export type SidebarPanel = 'files' | 'toc' | 'recents' | 'bookmarks'
+
+/** Transient message shown to the user, e.g. when a task write fails. */
+export interface Notice {
+  text: string
+  kind: 'error' | 'info'
+}
 
 interface AppState {
   tabs: Tab[]
@@ -57,6 +67,7 @@ interface AppState {
   sidebarPanel: SidebarPanel
   activeHeadingId: string | null
   lightbox: LightboxImage | null
+  notice: Notice | null
   initialized: boolean
 
   init: () => Promise<void>
@@ -86,17 +97,19 @@ interface AppState {
   exportPdf: () => Promise<void>
   openLightbox: (image: LightboxImage) => void
   closeLightbox: () => void
+  toggleTask: (tabId: string, line: number, checked: boolean) => Promise<boolean>
+  setNotice: (notice: Notice | null) => void
 }
 
 let nextTabId = 1
 /** Anchor to jump to once the freshly opened document mounts. */
 export const pendingAnchors = new Map<string, string>()
 
-function buildTabContent(doc: DocumentContent): { html: string; toc: TocItem[] } {
+function buildTabContent(doc: DocumentContent): { html: string; toc: TocItem[]; tasks: TaskItem[] } {
   if (doc.kind === 'markdown') {
     return renderMarkdown(doc.content)
   }
-  return { html: renderCodeDocument(doc.content, doc.language), toc: [] }
+  return { html: renderCodeDocument(doc.content, doc.language), toc: [], tasks: [] }
 }
 
 export const useApp = create<AppState>((set, get) => {
@@ -136,6 +149,7 @@ export const useApp = create<AppState>((set, get) => {
     sidebarPanel: 'files',
     activeHeadingId: null,
     lightbox: null,
+    notice: null,
     initialized: false,
 
     init: async () => {
@@ -184,6 +198,7 @@ export const useApp = create<AppState>((set, get) => {
         error: null,
         html: '',
         toc: [],
+        tasks: [],
         zoom: get().settings.defaultZoom,
         scrollTop: 0,
         loading: true
@@ -196,8 +211,8 @@ export const useApp = create<AppState>((set, get) => {
         tabs: get().tabs.map((t) => {
           if (t.id !== id) return t
           if (result.ok) {
-            const { html, toc } = buildTabContent(result.doc)
-            return { ...t, doc: result.doc, html, toc, loading: false }
+            const { html, toc, tasks } = buildTabContent(result.doc)
+            return { ...t, doc: result.doc, html, toc, tasks, loading: false }
           }
           return { ...t, error: result.error, loading: false }
         })
@@ -377,6 +392,46 @@ export const useApp = create<AppState>((set, get) => {
 
     openLightbox: (image) => set({ lightbox: image }),
 
-    closeLightbox: () => set({ lightbox: null })
+    closeLightbox: () => set({ lightbox: null }),
+
+    /**
+     * Write a task-list checkbox back to its source file. `tab.html` is left
+     * untouched on purpose: the browser has already flipped the checkbox in the
+     * DOM, and re-rendering would restart Mermaid diagrams and drop search
+     * highlights for a change that is already on screen.
+     */
+    toggleTask: async (tabId, line, checked) => {
+      const tab = get().tabs.find((t) => t.id === tabId)
+      if (!tab?.doc || tab.doc.kind !== 'markdown') return false
+      const expected = lineAt(tab.doc.content, line)
+      if (expected === null) {
+        get().setNotice({ kind: 'error', text: 'That task is no longer in the document.' })
+        return false
+      }
+
+      const result = await window.api.toggleTask(tab.path, line, checked, expected)
+      if (!result.ok) {
+        get().setNotice({ kind: 'error', text: result.error })
+        return false
+      }
+      set({
+        tabs: get().tabs.map((t) =>
+          t.id !== tabId || !t.doc
+            ? t
+            : {
+                ...t,
+                doc: {
+                  ...t.doc,
+                  content: result.content,
+                  info: { ...t.doc.info, size: result.size, modifiedAt: result.modifiedAt }
+                },
+                tasks: t.tasks.map((task) => (task.line === line ? { ...task, checked } : task))
+              }
+        )
+      })
+      return true
+    },
+
+    setNotice: (notice) => set({ notice })
   }
 })

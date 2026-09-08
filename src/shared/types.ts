@@ -27,6 +27,11 @@ export type FileReadResult =
   | { ok: true; doc: DocumentContent }
   | { ok: false; error: FileReadError }
 
+/** Result of writing a task-list checkbox back to a Markdown file. */
+export type TaskWriteResult =
+  | { ok: true; content: string; size: number; modifiedAt: number }
+  | { ok: false; error: string }
+
 export interface TreeNode {
   name: string
   path: string

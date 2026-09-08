@@ -6,8 +6,10 @@ import {
   extensionOf,
   kindForExtension,
   type FileReadResult,
+  type TaskWriteResult,
   type TreeNode
 } from '../shared/types'
+import { toggleTaskInSource } from '../shared/tasks'
 
 /** Read a document from disk with friendly, typed errors. */
 export async function readDocument(filePath: string): Promise<FileReadResult> {
@@ -74,6 +76,45 @@ export async function readDocument(filePath: string): Promise<FileReadResult> {
       ok: false,
       error: { code: 'UNKNOWN', message: e.message ?? 'Unknown error reading file.', path: filePath }
     }
+  }
+}
+
+const TASK_FAILURES: Record<string, string> = {
+  OUT_OF_RANGE: 'That line no longer exists — the file changed on disk.',
+  NOT_A_TASK: 'That line is no longer a task item — the file changed on disk.',
+  STALE: 'The file changed on disk. Reopen it to see the current version.'
+}
+
+/**
+ * Flip a task-list checkbox on disk. The file is re-read first and the target
+ * line must still match `expected`, so an edit made outside the app is reported
+ * rather than silently overwritten.
+ */
+export async function toggleTaskInFile(
+  filePath: string,
+  lineIndex: number,
+  checked: boolean,
+  expected: string
+): Promise<TaskWriteResult> {
+  if (kindForExtension(extensionOf(filePath))?.kind !== 'markdown') {
+    return { ok: false, error: 'Only Markdown documents can be edited.' }
+  }
+  try {
+    const current = await fs.readFile(filePath, 'utf-8')
+    const outcome = toggleTaskInSource(current, lineIndex, checked, expected)
+    if (!outcome.ok) {
+      return { ok: false, error: TASK_FAILURES[outcome.reason] ?? 'Could not update the task.' }
+    }
+    await fs.writeFile(filePath, outcome.source, 'utf-8')
+    const stat = await fs.stat(filePath)
+    return { ok: true, content: outcome.source, size: stat.size, modifiedAt: stat.mtimeMs }
+  } catch (err: unknown) {
+    const e = err as NodeJS.ErrnoException
+    if (e.code === 'EACCES' || e.code === 'EPERM' || e.code === 'EROFS') {
+      return { ok: false, error: 'The file is read-only or access was denied.' }
+    }
+    if (e.code === 'ENOENT') return { ok: false, error: 'File not found.' }
+    return { ok: false, error: e.message ?? 'Could not write the file.' }
   }
 }
 
