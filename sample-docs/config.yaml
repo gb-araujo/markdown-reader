@@ -1,0 +1,6 @@
+service: payments
+replicas: 3
+retry:
+  attempts: 5
+  baseDelayMs: 200
+  maxDelayMs: 5000

@@ -5,6 +5,8 @@ A modern desktop **Markdown reader** built with Electron. Opens `.md` files and 
 ![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)
 ![Platform: Windows](https://img.shields.io/badge/platform-Windows-blue.svg)
 
+![Markdown Reader with the sample-docs folder open: file tree, tabs, a Mermaid diagram and an interactive task list](docs/screenshot.png)
+
 ## Features
 
 - **Markdown rendering** — headings, lists, task lists, tables, blockquotes, footnotes, images, links
