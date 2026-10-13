@@ -73,6 +73,7 @@ interface AppState {
   init: () => Promise<void>
   openPath: (path: string, opts?: { anchor?: string }) => Promise<void>
   openPaths: (paths: string[]) => Promise<void>
+  restoreSession: () => Promise<void>
   openFileDialog: () => Promise<void>
   openFolder: (path?: string) => Promise<void>
   closeTab: (id: string) => void
@@ -102,6 +103,8 @@ interface AppState {
 }
 
 let nextTabId = 1
+/** Resolves once the previous session's tabs are restored, so files opened meanwhile land last and keep focus. */
+let sessionRestored: Promise<void> = Promise.resolve()
 /** Anchor to jump to once the freshly opened document mounts. */
 export const pendingAnchors = new Map<string, string>()
 
@@ -153,6 +156,16 @@ export const useApp = create<AppState>((set, get) => {
     initialized: false,
 
     init: async () => {
+      let done!: () => void
+      sessionRestored = new Promise<void>((r) => (done = r))
+      try {
+        await get().restoreSession()
+      } finally {
+        done()
+      }
+    },
+
+    restoreSession: async () => {
       const state = await window.api.getState()
       set({
         settings: state.settings,
@@ -226,6 +239,7 @@ export const useApp = create<AppState>((set, get) => {
     },
 
     openPaths: async (paths) => {
+      await sessionRestored
       for (const p of paths) await get().openPath(p)
     },
 
